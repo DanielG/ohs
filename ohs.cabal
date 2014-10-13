@@ -15,13 +15,27 @@ build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 
-executable ohs
+executable ohsd
+  hs-source-dirs:    daemon
   main-is:           Main.hs
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.6 && <4.7,
+  build-depends:       base >=4.6 && <4.8,
+                       bytestring,
+                       http-client,
+                       http-client-tls,
+                       mtl,
+                       unix
+  default-language:    Haskell2010
+
+executable ohs-ui-gtk
+  main-is:           Main.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.6 && <4.8,
                        webkit >= 0.12.6,
-                       gtk,
-                       mtl
+                       gtk, glib,
+                       mtl,
+                       unix
   -- hs-source-dirs:
   default-language:    Haskell2010
