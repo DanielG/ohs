@@ -1,0 +1,9 @@
+[submodule "submodules/webkit"]
+	path = submodules/webkit
+	url = https://github.com/andy-morris/webkit.git
+[submodule "submodules/bindings-libsoup"]
+	path = submodules/bindings-libsoup
+	url = https://github.com/andy-morris/bindings-libsoup.git
+[submodule "submodules/language-c"]
+	path = submodules/language-c
+	url = https://github.com/acowley/language-c.git

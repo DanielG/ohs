@@ -1,48 +1,20 @@
-{-# LANGUAGE RecordWildCards, ScopedTypeVariables, OverloadedStrings #-}
-module Main where
+module OHS.Login where
 
-import Control.Applicative
-import Control.Exception
-import Control.Monad
-import Data.Char
-import Data.Either
-import Data.Functor.Identity
-import Data.List
-import Data.Maybe
-import Data.Text.Encoding
-import Data.Text.Encoding.Error
-import Data.Time.Format
-import Data.Traversable
-import Data.Word
-import Network.HTTP.Client
-import Network.HTTP.Client.MultipartFormData
-import Network.HTTP.Client.TLS
-import Network.HTTP.Types.Header
-import Network.URI (escapeURIString, isUnescapedInURIComponent)
-import Numeric
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as L
-import qualified Data.Text as T
+addUserAgent ua req = req { requestHeaders =
+                              (hUserAgent, webKit_userAgent):requestHeaders req
+                          }
 
-import Network.HTTP.Client.Internal
 
-import System.Locale
+data LoginMethod = LoginMethod {
+      loginUrl :: String,
+      loginReq :: (CookieJar -> IO Request)
+    }
 
-import OHS.Types
-import OHS.Server
 
-webKit_userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/538.15 (KHTML, like Gecko) Version/8.0 Safari/538.15"
+googleAccountsLogin = LoginMethod "https://accounts.google.com" $ \jar -> do
+    url <- parseUrl "https://accounts.google.com/ServiceLoginAuth"
 
-ua req = req { requestHeaders = (hUserAgent, webKit_userAgent):requestHeaders req }
-
-googleAccountsLogin = LoginMethod {
-    loginUrl = "https://accounts.google.com"
-  , loginForm = undefined --LoginForm "" []
-  , loginNeedToFiddleWithHTML = Just True
-  , loginReq = \req jar -> do
-        url <- parseUrl "https://accounts.google.com/ServiceLoginAuth"
-        formDataBody [ partBS "GALX" $ fromJust $ lookup "GALX" (cookieJarToAsc jar)
+    formDataBody [ partBS "GALX" $ fromJust $ lookup "GALX" (cookieJarToAsc jar)
                  , partBS "_utf8" "☃"
                  , partBS "bgresponse" "js_disabled"
                  , partBS "Email" "smith@darkboxed.org"
@@ -51,26 +23,14 @@ googleAccountsLogin = LoginMethod {
                  , partBS "PersistentCookie" "yes"
                  , partBS "rmShown" "1"
                  ] url { cookieJar = Just jar }
-  }
 
+snapExampleLogin = LoginMethod "http://127.0.0.1:8000" $ \jar -> do
+    req <- parseUrl "http://127.0.0.1:8000/login"
 
--- snapExampleLogin = LoginMethod {
---   , loginUrl = "https://www.paypal.com/at/cgi-bin/webscr?cmd=_login-run"
---   , loginForm = LoginForm "" []
---   , loginNeedToFiddleWithHTML = Just True
---   , loginReq = \req jar -> do
---         url <-
---   }
-
-
-
---  "http://127.0.0.1:8000" $ \jar -> do
---     req <- parseUrl "http://127.0.0.1:8000/login"
-
---     return $ urlEncodedBody
---                [ ("login", "example")
---                , ("password", "example")
---                ] req { cookieJar = Just jar }
+    return $ urlEncodedBody
+               [ ("login", "example")
+               , ("password", "example")
+               ] req { cookieJar = Just jar }
 
 
 main = doLogin -- server
@@ -81,8 +41,8 @@ doLogin = withManager tlsManagerSettings $ \mngr -> do
   req <- ua <$> parseUrl (loginUrl l)
   withResponse' req mngr $ \(rs, (req',res')) -> do
       _ <- sequenceA $ brConsume <$> res'
-      login_req <- ua <$> ((loginReq l) req' (responseCookieJar res'))
-      withResponse' login_req mngr $ \(_, (req'', res'')) -> do
+      loginReq <- ua <$> (loginReq l $ (responseCookieJar res'))
+      withResponse' loginReq mngr $ \(_, (req'', res'')) -> do
           res'' <- sequenceA $ brConsume <$> res''
 
           let jar = evictOverwrittenCookies
