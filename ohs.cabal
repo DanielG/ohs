@@ -16,40 +16,18 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules: OHS.Cookies
+  exposed-modules: OHS.Client
                    OHS.Server
---                 OHS.Client
+                   OHS.Forms
+                   OHS.Cookies
+                   OHS.Types
   -- other-extensions:
   build-depends:       base >=4.6 && <4.8,
                        bytestring,
                        cereal,
+                       aeson,
                        either,
-                       gsasl,
-                       http-client,
-                       http-client-tls,
-                       http-types,
-                       iso8601-time,
-                       mtl,
-                       network,
-                       network-simple,
-                       safecopy,
-                       text,
-                       time, old-locale,
-                       transformers,
-                       unix
-  default-language:    Haskell2010
-
-
-
-
-executable ohsd
-  hs-source-dirs:    daemon
-  main-is:           Main.hs
-  -- other-extensions:
-  build-depends:       base >=4.6 && <4.8,
-                       bytestring,
-                       cereal,
-                       either,
+                       exceptions,
                        gsasl,
                        http-client,
                        http-client-tls,
@@ -63,19 +41,68 @@ executable ohsd
                        time, old-locale,
                        transformers,
                        unix,
+                       pipes,
+                       pipes-network,
+                       hxt
+  default-language:    Haskell2010
+
+
+
+
+executable ohsd
+  hs-source-dirs:    daemon
+  main-is:           Main.hs
+  -- other-extensions:
+  build-depends:       base >=4.6 && <4.8,
+                       bytestring,
+                       cereal,
+                       aeson,
+                       either,
+                       exceptions,
+                       gsasl,
+                       http-client,
+                       http-client-tls,
+                       http-types,
+                       iso8601-time,
+                       mtl,
+                       network,
+                       network-uri,
+                       network-simple,
+                       safecopy,
+                       text,
+                       time, old-locale,
+                       transformers,
+                       unix,
                        ohs
+  default-language:    Haskell2010
+
+executable ohs
+  hs-source-dirs:    client
+  main-is:           Cli.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       base >=4.6 && <4.8,
+                       http-types,
+                       http-client,
+                       exceptions,
+                       transformers,
+                       mtl,
+                       unix,
+                       ohs
+  -- hs-source-dirs:
   default-language:    Haskell2010
 
 executable ohs-ui-gtk
   hs-source-dirs:    client
-  main-is:           Main.hs
+  main-is:           GTK.hs
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.6 && <4.8,
-                       webkitgtk3 >= 0.13,
+                       webkit >= 0.13,
                        gtk, glib,
                        http-types,
                        http-client,
+                       exceptions,
                        mtl,
                        unix,
                        ohs

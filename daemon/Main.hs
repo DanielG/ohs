@@ -34,97 +34,7 @@ import OHS.Server
 
 webKit_userAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/538.15 (KHTML, like Gecko) Version/8.0 Safari/538.15"
 
-ua req = req { requestHeaders = (hUserAgent, webKit_userAgent):requestHeaders req }
-
-googleAccountsLogin = LoginMethod {
-    loginUrl = "https://accounts.google.com"
-  , loginForm = undefined --LoginForm "" []
-  , loginNeedToFiddleWithHTML = Just True
-  , loginReq = \req jar -> do
-        url <- parseUrl "https://accounts.google.com/ServiceLoginAuth"
-        formDataBody [ partBS "GALX" $ fromJust $ lookup "GALX" (cookieJarToAsc jar)
-                 , partBS "_utf8" "☃"
-                 , partBS "bgresponse" "js_disabled"
-                 , partBS "Email" "smith@darkboxed.org"
-                 , partBS "Passwd" "iN1qohQK45ATr3ygpYxC"
-                 , partBS "signIn" "Sign in"
-                 , partBS "PersistentCookie" "yes"
-                 , partBS "rmShown" "1"
-                 ] url { cookieJar = Just jar }
-  }
-
-
--- snapExampleLogin = LoginMethod {
---   , loginUrl = "https://www.paypal.com/at/cgi-bin/webscr?cmd=_login-run"
---   , loginForm = LoginForm "" []
---   , loginNeedToFiddleWithHTML = Just True
---   , loginReq = \req jar -> do
---         url <-
---   }
-
-
-
---  "http://127.0.0.1:8000" $ \jar -> do
---     req <- parseUrl "http://127.0.0.1:8000/login"
-
---     return $ urlEncodedBody
---                [ ("login", "example")
---                , ("password", "example")
---                ] req { cookieJar = Just jar }
-
-
-main = doLogin -- server
-
-
-doLogin = withManager tlsManagerSettings $ \mngr -> do
-  let l = googleAccountsLogin
-  req <- ua <$> parseUrl (loginUrl l)
-  withResponse' req mngr $ \(rs, (req',res')) -> do
-      _ <- sequenceA $ brConsume <$> res'
-      login_req <- ua <$> ((loginReq l) req' (responseCookieJar res'))
-      withResponse' login_req mngr $ \(_, (req'', res'')) -> do
-          res'' <- sequenceA $ brConsume <$> res''
-
-          let jar = evictOverwrittenCookies
-                    $ destroyCookieJar $ responseCookieJar res''
-
-          let domCookies = cookieToJSDOM <$> jar
-
-          putStrLn ""
-
-          let cns = ["NID", "SID", "HSID", "SSID", "APISID", "SAPISID"]
-          let cs = filter ((`elem` cns) . cookie_name) jar
-          writeFile "domCookies" $ show $ cookieToJSDOM <$> cs
-
- where
-   infixr 9 .||.
-   (.||.) :: (a -> Bool) -> (a -> Bool) -> a -> Bool
-   f .||. g = \x -> f x || g x
-
-   bs :: BS.ByteString -> String
-   bs s = T.unpack $ decodeUtf8 s
-   url req = bs $ (host req) `BS.append` (path req) `BS.append` (queryString req)
-
-   withResponse' req mngr f = do
-       withResponseHistory req mngr $ \h -> do
-           let history = hrRedirects h
-               final = (hrFinalRequest h, hrFinalResponse h)
-           putStr $ ((++"\n") . ("Request: "++) . url . fst) `concatMap` hrRedirects h
-
-           f (history,final)
-
-evictOverwrittenCookies :: [Cookie] -> [Cookie]
-evictOverwrittenCookies cs =
-    map last $
-    map (sortBy (\a b -> cookie_creation_time a `compare` cookie_creation_time b)) $
-     groupBy (\a b -> cookie_name a == cookie_name b) $
-     sortBy  (\a b -> cookie_name a `compare` cookie_name b) cs
-
-cookieJarToAsc :: CookieJar -> [(String, BS.ByteString)]
-cookieJarToAsc jar = cookieToAsc <$> destroyCookieJar jar
-
-cookieToAsc :: Cookie -> (String,BS.ByteString)
-cookieToAsc Cookie {..} = (C8.unpack cookie_name, cookie_value)
+main = server "127.0.0.1" "1234"
 
 -- | UTF8 or JavaScript escaped cookie string for use with @document.cookie@
 cookieToJSDOM :: Cookie -> String
@@ -153,8 +63,6 @@ cookieToJSDOM Cookie {..} = fromJust $
 --                     "; path=",  path,
 --                   "; secure=",  secure
                      ]
-
-
 
    utcString = formatTime defaultTimeLocale rfc822DateFormat
    encodeURIComponent = id -- escapeURIString isUnescapedInURIComponent -- (\c -> isUnescapedInURIComponent c || c `elem` "=;")
