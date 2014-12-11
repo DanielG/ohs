@@ -3,10 +3,12 @@ module OHS.Server where
 
 import Control.Applicative
 import Control.Exception
+import Control.Monad.State.Strict
 import Data.List
 import Data.Serialize
 import Data.Serialize.Get
 import Data.Traversable
+import Data.Aeson
 import Network.Simple.TCP
 import Network.Socket.ByteString.Lazy as NBL
 import Network.Socket.ByteString as NB
@@ -16,6 +18,8 @@ import Network.HTTP.Client.MultipartFormData
 import Network.HTTP.Types.Header
 import Pipes as P
 import Pipes.Network.TCP as PT
+import Pipes.Aeson as PA
+import Pipes.Aeson.Unchecked as PA (encode)
 
 import qualified Network.Protocol.SASL.GNU as SASL
 import qualified Data.ByteString as BS
@@ -42,13 +46,26 @@ encodePipe :: Monad m => Putter a -> Pipe a BS.ByteString m ()
 encodePipe put =
   yield =<< (runPut . put) <$> await
 
+ignoreDecodeFail :: Monad m => Pipe (Maybe (Either DecodingError a)) a m ()
+ignoreDecodeFail = do
+  Just (Right a) <- await
+  yield a
+
+decodeJSON :: (Monad m, FromJSON a)
+           => Producer BS.ByteString m ()
+           -> Producer (Maybe (Either DecodingError a)) m ()
+decodeJSON prod = do
+  (r,l) <- lift $ runStateT PA.decode prod
+  yield r
+  decodeJSON l
+
 server :: String -> String -> IO ()
 server host port = serve (Host host) port $ \(s,addr) -> cleanup s $ do
         let
-          p = PT.fromSocket s 4096
-                >-> decoderPipe (get :: Get Command)
+          p = decodeJSON (PT.fromSocket s 4096)
+                >-> ignoreDecodeFail
                 >-> (await >>= liftIO . executeCommand >>= yield)
-                >-> encodePipe (put :: Putter CommandResponse)
+                >-> P.for cat PA.encode
                 >-> toSocket s
         runEffect p
  where
