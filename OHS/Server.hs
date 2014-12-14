@@ -71,7 +71,7 @@ server host port = serve (Host host) port $ \(s,addr) -> cleanup s $ do
  where
   cleanup s = flip finally (closeSock s)
 
-loginMethods :: [(Site, LoginMethod)]
+loginMethods :: [(SiteUrl, LoginMethod)]
 loginMethods = [
  (,) "google.at" LoginMethod {
     loginUrl = "https://accounts.google.com"
@@ -96,7 +96,7 @@ loginMethods = [
   }
  ]
 
-credentials :: [((Site, UId), Secret)]
+credentials :: [((SiteUrl, UId), Secret)]
 credentials = [
  (,) ("google.at", UId "smith@darkboxed.org") (Password "iN1qohQK45ATr3ygpYxC")
  ]

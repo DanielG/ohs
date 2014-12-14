@@ -16,7 +16,7 @@ import Network.HTTP.Types
 import Network.HTTP.Client
 import Network.Socket.ByteString.Lazy
 
-type Site = String
+type SiteUrl = String
 
 data UId = UId String deriving (Eq,Show,Read,Generic)
 data Secret = Password String deriving (Eq,Show,Read,Generic)
@@ -68,6 +68,20 @@ data LoginForm = LoginForm {
     , loginFormMethod :: StdMethod
     , loginFormFields :: [String]
     } deriving (Show,Read,Generic)
+
+type Locator = [LocatorNode]
+data LocatorNode = LocatorNode {
+      lnTag   :: String
+      -- | Sibbling offset (0 is first)
+    , lnOffset  :: Int
+    , lnId      :: Maybe String
+    , lnClasses :: [String]
+    } deriving (Read, Show)
+
+$(deriveJSON defaultOptions ''LocatorNode)
+
+
+
 
 data Command = Login {
     -- | Domain of the site the user wants to login to

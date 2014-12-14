@@ -1,6 +1,6 @@
 module OHS.Client (
     module OHS.Client
-  , Site
+  , SiteUrl
   , UId (..)
   ) where
 
@@ -27,7 +27,7 @@ runOHST :: (MonadIO m, MonadMask m) => String -> String -> (OHST m a) -> m a
 runOHST host port action =
     connect host port $ \(sock, addr) -> runReaderT action (OHSEnv sock addr)
 
-login :: (MonadIO m, MonadMask m) => Site -> UId -> OHST m [Cookie]
+login :: (MonadIO m, MonadMask m) => SiteUrl -> UId -> OHST m [Cookie]
 login site uid = do
   OHSEnv sock addr <- ask
   liftIO $ NBL.sendAll sock $ encode Login {

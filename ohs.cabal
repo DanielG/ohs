@@ -18,9 +18,11 @@ cabal-version:       >=1.10
 library
   exposed-modules: OHS.Client
                    OHS.Server
+                   OHS.Locator
                    OHS.Forms
                    OHS.Cookies
                    OHS.Types
+                   OHS.HXTrace
   -- other-extensions:
   build-depends:       base >=4.6 && <4.8,
                        bytestring,
@@ -43,12 +45,27 @@ library
                        unix,
                        pipes,
                        pipes-network,
-                       hxt
                        pipes-aeson,
+                       hxt,
+                       hxt-xpath,
+                       safe
   default-language:    Haskell2010
 
 
-
+executable update-dataset
+  default-language:  Haskell2010
+  hs-source-dirs:    data
+  main-is:           Update.hs
+  -- other-extensions:
+  build-depends:       base,
+                       directory,
+                       split,
+                       mtl,
+                       transformers,
+                       filepath,
+                       hxt,
+                       hxt-xpath,
+                       ohs
 
 executable ohsd
   hs-source-dirs:    daemon
