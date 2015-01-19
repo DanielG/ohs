@@ -1,30 +1,24 @@
 {-# LANGUAGE ScopedTypeVariables, RecordWildCards, OverloadedStrings #-}
+{-# OPTIONS -Wall #-}
 module OHS.Server where
 
 import Control.Applicative
 import Control.Exception
 import Control.Monad.State.Strict
-import Data.List
-import Data.Serialize
-import Data.Serialize.Get
-import Data.Traversable
 import Data.Aeson
+import qualified Data.Text as T
+import Network.URI (URI (..), URIAuth(..))
 import Network.Simple.TCP
-import Network.Socket.ByteString.Lazy as NBL
-import Network.Socket.ByteString as NB
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.HTTP.Client.MultipartFormData
-import Network.HTTP.Types.Header
 import Pipes as P
 import Pipes.Network.TCP as PT
-import Pipes.Aeson as PA
 import Pipes.Aeson.Unchecked as PA (encode)
+import Web.Cookie
 
-import qualified Network.Protocol.SASL.GNU as SASL
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy as LBS
 import Data.Text.Encoding
 import qualified Data.Text as T
 
@@ -32,39 +26,26 @@ import Data.Maybe
 
 import OHS.Types
 import OHS.Cookies
+import OHS.Pipes
+import OHS.HTTP
 
-decoderPipe :: MonadIO m => Get a -> Pipe BS.ByteString a m ()
-decoderPipe get = go (runGetPartial get) BS.empty
- where
-   go f bs =
-       case f bs of
-         Fail err rest -> fail err
-         Partial f' -> await >>= go f'
-         Done r rest -> yield r >> go (runGetPartial get) rest
+inspectRes r = do
+--  putStrLn $ "response: " ++ ( (cookies j)))
 
-encodePipe :: Monad m => Putter a -> Pipe a BS.ByteString m ()
-encodePipe put =
-  yield =<< (runPut . put) <$> await
+  (\c -> putStrLn $ "SetCookieI: " ++ jbs c) `mapM_` cookies r
 
-ignoreDecodeFail :: Monad m => Pipe (Maybe (Either DecodingError a)) a m ()
-ignoreDecodeFail = do
-  Just (Right a) <- await
-  yield a
+  return r
 
-decodeJSON :: (Monad m, FromJSON a)
-           => Producer BS.ByteString m ()
-           -> Producer (Maybe (Either DecodingError a)) m ()
-decodeJSON prod = do
-  (r,l) <- lift $ runStateT PA.decode prod
-  yield r
-  decodeJSON l
+jbs j = T.unpack $ decodeUtf8 $ LBS.toStrict $ Data.Aeson.encode j
 
 server :: String -> String -> IO ()
-server host port = serve (Host host) port $ \(s,addr) -> cleanup s $ do
+server host port = serve (Host host) port $ \(s,_addr) -> cleanup s $ do
         let
           p = decodeJSON (PT.fromSocket s 4096)
                 >-> ignoreDecodeFail
-                >-> (await >>= liftIO . executeCommand >>= yield)
+                >-> (await >>= (\j -> liftIO (putStrLn $ "request: " ++ show j) >> return j) >>= yield)
+                >-> (await >>= (liftIO . executeCommand) >>= yield)
+                >-> (await >>= liftIO . inspectRes >>= yield)
                 >-> P.for cat PA.encode
                 >-> toSocket s
         runEffect p
@@ -73,11 +54,10 @@ server host port = serve (Host host) port $ \(s,addr) -> cleanup s $ do
 
 loginMethods :: [(SiteUrl, LoginMethod)]
 loginMethods = [
- (,) "google.at" LoginMethod {
+ (,) "www.google.at" LoginMethod {
     loginUrl = "https://accounts.google.com"
-  , loginForm = undefined --LoginForm "" []
   , loginNeedToFiddleWithHTML = Just True
-  , loginReq = \(Credentials (UId uid) (Password pw)) req jar -> do
+  , loginReq = \(Credentials (UId uid) (Password pw)) _req jar -> do
         url <- parseUrl "https://accounts.google.com/ServiceLoginAuth"
         formDataBody [ partBS "GALX" $ fromJust $ lookup "GALX" (cookieJarToAsc jar)
                  , partBS "_utf8" "☃"
@@ -88,53 +68,47 @@ loginMethods = [
                  , partBS "PersistentCookie" "yes"
                  , partBS "rmShown" "1"
                  ] url { cookieJar = Just jar }
-
-          -- let domCookies = cookieToJSDOM <$> jar
-          -- let cns = ["NID", "SID", "HSID", "SSID", "APISID", "SAPISID"]
-          -- let cs = filter ((`elem` cns) . cookie_name) jar
-          -- writeFile "domCookies" $ show $ cookieToJSDOM <$> cs
   }
  ]
 
 credentials :: [((SiteUrl, UId), Secret)]
 credentials = [
- (,) ("google.at", UId "smith@darkboxed.org") (Password "iN1qohQK45ATr3ygpYxC")
+ (,) ("www.google.at", UId "smith@darkboxed.org") (Password "iN1qohQK45ATr3ygpYxC")
  ]
 
 executeCommand :: Command -> IO CommandResponse
-executeCommand (Login site uid ua) = do
-  let Just lm  = lookup site loginMethods
-      Just pw = lookup (site,uid) credentials
-  Cookies <$> login lm (Credentials uid pw) ua
+executeCommand (Login uri uid ua) = do
+  let Just dom = uriRegName <$> uriAuthority uri
+      Just lm = lookup dom loginMethods
+      Just pw = lookup (dom,uid) credentials
 
-login :: LoginMethod -> Credentials -> String -> IO [Cookie]
-login LoginMethod {..} crd ua = withManager tlsManagerSettings $ \mngr -> do
+  uncurry LoginSuccess <$> login lm (Credentials uid pw) ua
+
+executeCommand (Register site locator _cookies) = do
+  undefined
+
+login :: LoginMethod -> Credentials -> String -> IO (URI, [SetCookie])
+login LoginMethod {..} crd ua = withManager uaManagerSettings $ \mngr -> do
   -- First get the login page and all the cookies that go along with it
-  req <- addUserAgent ua <$> parseUrl loginUrl
-  withResponse' req mngr $ \(rs, (req',res')) -> do
-      -- >/dev/null the response body for now (TODO: pass to loginReq)
-      _ <- sequenceA $ brConsume <$> res'
+  req <- parseUrl loginUrl
+
+  withBrowser mngr req $ \((req',res'):_) -> do
+      (\c -> putStrLn $ "SetCookie': " ++ jbs (cookieToSetCookie c)) `mapM_` extractCookies res'
 
       -- Do the actual login request
-      lReq <- addUserAgent ua <$> (loginReq crd req' (responseCookieJar res'))
-      withResponse' lReq mngr $ \(_, (req'', res'')) -> do
-          res'' <- sequenceA $ brConsume <$> res''
+      lReq <- loginReq crd req' (responseCookieJar res')
 
-          return $ evictOverwrittenCookies
-                     $ destroyCookieJar $ responseCookieJar res''
+      withBrowser mngr lReq $ \((req'',res''):_) -> do
+          let
+              targetUri = getUri req''
+              cookies = extractCookies res''
+
+          return $ (targetUri, map cookieToSetCookie cookies)
  where
-   addUserAgent ua req =
-    req {
-     requestHeaders = (hUserAgent, encodeUtf8 (T.pack ua)):requestHeaders req
-   }
+   extractCookies =
+       evictOverwrittenCookies . destroyCookieJar . responseCookieJar
+   uaManagerSettings = managerUserAgent ua tlsManagerSettings
 
    bs :: BS.ByteString -> String
    bs s = T.unpack $ decodeUtf8 s
    url req = bs $ (host req) `BS.append` (path req) `BS.append` (queryString req)
-
-   withResponse' req mngr f = do
-       withResponseHistory req mngr $ \h -> do
-           let history = hrRedirects h
-               final = (hrFinalRequest h, hrFinalResponse h)
-           putStr $ ((++"\n") . ("Request: "++) . url . fst) `concatMap` hrRedirects h
-           f (history,final)

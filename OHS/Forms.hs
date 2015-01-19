@@ -6,4 +6,9 @@ import Data.List
 import Text.XML.HXT.Core
 
 
+-- just in case
+import Text.Parsec
+import Text.Parsec.String
+
+
 import OHS.Types

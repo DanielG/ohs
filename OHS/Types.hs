@@ -1,35 +1,39 @@
-{-# LANGUAGE TemplateHaskell, StandaloneDeriving, DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings, TemplateHaskell, StandaloneDeriving, DeriveGeneric #-}
 module OHS.Types where
 
+import Blaze.ByteString.Builder
 import Control.Applicative
+import Control.Monad
 import Data.ByteString
+import qualified Data.ByteString as BS
+import Data.Default.Class
 import Data.Maybe
+import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.Time
 import Data.Time.ISO8601
+import Data.String
 import Data.Serialize
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Parser
 import GHC.Generics
+import Network.URI
 import Network.HTTP.Types
 import Network.HTTP.Client
 import Network.Socket.ByteString.Lazy
+import System.Locale
+import Web.Cookie
 
 type SiteUrl = String
 
-data UId = UId String deriving (Eq,Show,Read,Generic)
-data Secret = Password String deriving (Eq,Show,Read,Generic)
+data UId = UId String deriving (Eq,Show,Generic)
+data Secret = Password String deriving (Eq,Show,Generic)
 data Credentials = Credentials { crdUId    :: UId
                                , crdSecret :: Secret
                                }
-                   deriving (Eq,Show,Read,Generic)
+                   deriving (Eq,Show,Generic)
 $(deriveJSON defaultOptions ''Credentials)
-
-
-instance Serialize UId
-instance Serialize Secret
-instance Serialize Credentials
 
 instance ToJSON UId         where toJSON (UId x) = toJSON x
 instance ToJSON Secret      where toJSON (Password x) = toJSON x
@@ -41,9 +45,24 @@ data LoginMethod = LoginMethod {
       -- In the future we should find a way to classify whether a page is a
       -- login page for a certain domain rather than "hardcoding" the form's
       -- target url.
-      loginUrl :: String,
 
-      loginForm :: LoginForm,
+      -- Nope that doesn't work if we consider attacker controlled content on a
+      -- site. Imagine some sort of file upload thing where the server just
+      -- serves the attacker controlled content on a sub path. The attacker
+      -- could then trick the server into submitting the password to an arbitary
+      -- URL (because he can trick our classifier). Even if we check the target
+      -- URL is within the same domain the site could still have some POST URL
+      -- where the attacker is able to extract the password. So we really do
+      -- need to hardcode this or at least find it by interacting with a trusted
+      -- part of the site.
+
+      -- Sites like Amazon make this really hard as their login forms are behind
+      -- VERY long and complicated looking URLs that contain all sorts of
+      -- information.
+
+      -- Stripping away this information doesn't seem to work either the server
+      -- returns an error.  .... :/
+      loginUrl :: String,
 
       -- | Some sites use hidden fields to their login forms, so we have to do a
       -- request and parse the <form> to get all the login request parameters we
@@ -58,17 +77,6 @@ data LoginMethod = LoginMethod {
       loginReq :: (Credentials -> Request -> CookieJar -> IO Request)
     }
 
-type URI = String
-type DIV = String
-type ID  = String
-
-data LoginForm = LoginForm {
-      loginFormId     :: (Maybe ID, Maybe DIV)
-    , loginFormAction :: URI
-    , loginFormMethod :: StdMethod
-    , loginFormFields :: [String]
-    } deriving (Show,Read,Generic)
-
 type Locator = [LocatorNode]
 data LocatorNode = LocatorNode {
       lnTag   :: String
@@ -76,36 +84,56 @@ data LocatorNode = LocatorNode {
     , lnOffset  :: Int
     , lnId      :: Maybe String
     , lnClasses :: [String]
-    } deriving (Read, Show)
+    } deriving (Show, Generic)
 
+instance Serialize LocatorNode
 $(deriveJSON defaultOptions ''LocatorNode)
 
 
-
-
-data Command = Login {
-    -- | Domain of the site the user wants to login to
-      loginSite      :: String
+data Command =
+      Login {
+    -- | URL of the site the user wants to login to
+      loginURL      :: URI
 
     -- | Email, username whatever depending on the site
     , loginUserId    :: UId
 
     -- | The frontend browser's user agent to make our requests indistinguishable
     , loginUserAgent :: String
+    }
 
-    } deriving (Show,Read,Generic)
+    | Register {
+      regURL         :: String
+    , regFormLocator :: Locator
+    , regCookies     :: [String]
+    }
 
-instance Serialize Command
+  deriving (Show,Generic)
 $(deriveJSON defaultOptions ''Command)
 
-data CommandResponse = Cookies [Cookie] deriving (Show,Read,Generic)
-instance Serialize CommandResponse
+data FailReason = LoginFailed
+                | NetworkError
+  deriving (Show, Read, Generic)
+$(deriveJSON defaultOptions ''FailReason)
+
+data CommandResponse = CommandSuccess
+                     | CommandFail { failReason :: FailReason }
+                     | LoginSuccess { targetURL :: URI, cookies :: [SetCookie] }
+  deriving (Show, Generic)
 $(deriveJSON defaultOptions ''CommandResponse)
 
--- Evil, evil, evil, eviL
-deriving instance Generic Cookie
-instance Serialize Cookie
-$(deriveJSON defaultOptions ''Cookie)
+
+instance ToJSON URI where
+    toJSON uri = String $ T.pack $ uriToString id uri ""
+
+instance FromJSON URI where
+    parseJSON (String s) = maybe mzero return $ parseURI $ T.unpack s
+
+instance ToJSON SetCookie where
+    toJSON sc = String $ decodeUtf8 $ toByteString $ renderSetCookie sc
+
+instance FromJSON SetCookie where
+    parseJSON (String s) = return $ parseSetCookie $ encodeUtf8 s
 
 instance ToJSON ByteString where
     toJSON x = String (decodeUtf8 x)
