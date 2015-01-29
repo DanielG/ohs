@@ -5,6 +5,7 @@ cd $(dirname $0)/..
 export PATH="$PWD/.cabal-sandbox/bin:$PATH"
 
 git submodule init
+git submodule update
 git submodule foreach git reset --hard HEAD
 git submodule foreach git pull origin master
 
