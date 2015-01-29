@@ -1,0 +1,18 @@
+OHS{c,d,m}
+==========
+
+Compiling
+---------
+
+```
+# apt-get install libwebkit-dev libsoup2.4-dev valac-0.26 ghc cabal-install
+$ make
+```
+
+Running
+-------
+
+```
+./dist/build/ohsd/ohsd &
+./src/OHSc/ohsc localhost 1234
+```
