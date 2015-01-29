@@ -10,6 +10,6 @@
 [submodule "submodules/hxt"]
 	path = submodules/hxt
 	url = https://github.com/DanielG/hxt.git
-[submodule "client-vala"]
-	path = client-vala
+[submodule "OHSc"]
+	path = src/OHSc
 	url = https://github.com/andy-morris/ohsc.git

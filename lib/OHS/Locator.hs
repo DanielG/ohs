@@ -49,7 +49,7 @@ locate l =
 
       findByTag, findByOffset, findById :: a (t n) (t n)
 
-      findByTag    = childAxis  >>> (deep $ hasName lnTag)
+      findByTag    = childAxis  >>> (deep $ hasName lnTag) -- TODO: use multi here?
 
       findByOffset = childAxis  >>> nRight lnOffset
        where

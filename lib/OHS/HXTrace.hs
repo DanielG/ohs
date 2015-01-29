@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module OHS.HXTrace
 where
 
@@ -6,6 +7,10 @@ import Control.Arrow.ArrowList
 import Control.Arrow.ArrowIf
 import Control.Arrow.ArrowTree
 import Control.Arrow.ArrowIO
+import Control.Arrow.ArrowNavigatableTree
+
+import Data.Tree.NavigatableTree.Class
+import Data.Tree.NTree.TypeDefs
 
 import System.IO                        ( hPutStrLn
                                         , hFlush
@@ -22,28 +27,26 @@ import Text.XML.HXT.Arrow.Edit          ( addHeadlineToXmlDoc
                                         , treeRepOfXmlDoc
                                         , indentDoc
                                         )
+import qualified Debug.Trace
 
 -- ------------------------------------------------------------
 
 
 -- | apply a trace arrow and issue message to stderr
 
-trace                   :: (ArrowList a, ArrowIO a)
-                        => Int -> a b String -> a b b
-trace level trc         = perform ( trc
-                                    >>>
-                                    arrIO (\ msg -> putStrLn msg)
-                                  )
+trace                   :: ArrowList a
+                        => a b String -> a b b
+trace trc               = (this &&& trc) >>> arr (\(b, str) -> Debug.Trace.trace str b)
 
-traceValue              :: (ArrowList a, ArrowIO a) => Int -> (b -> String) -> a b b
-traceValue level trc    = trace level (arr $ (('-' : "- (" ++ show level ++ ") ") ++) . trc)
+traceValue              :: ArrowList a => (b -> String) -> a b b
+traceValue trc          = trace (arr $ (('-' : "- ") ++) . trc)
 
 
-traceMsg                :: (ArrowList a, ArrowIO a) => Int -> String -> a b b
-traceMsg level msg      = traceValue level (const msg)
+traceMsg                :: ArrowList a => String -> a b b
+traceMsg       msg      = traceValue (const msg)
 
-traceSource             :: (ArrowXml a, ArrowIO a) => a XmlTree XmlTree
-traceSource             = trace 3 $
+traceSource             :: ArrowXml a => a XmlTree XmlTree
+traceSource             = trace $
                           xshow $
                           choiceA [ isRoot :-> ( indentDoc
                                                  >>>
@@ -58,31 +61,25 @@ traceSource             = trace 3 $
                                   ]
 
 -- | issue the tree representation of a document if trace level >= 4
-traceTree               :: (ArrowXml a, ArrowIO a) => a XmlTree XmlTree
-traceTree               = trace 4 $
-                          xshow $
-                          treeRepOfXmlDoc
-                          >>>
-                          addHeadlineToXmlDoc
-                          >>>
-                          getChildren
+traceTree               :: (ArrowXml a, ToXmlTree t XNode, FromXmlTree t XNode) => a (t XNode) (t XNode)
+traceTree               = arr toXmlTree >>>
+                          (
+                            trace $
+                            xshow $
+                            treeRepOfXmlDoc
+                            >>>
+                            addHeadlineToXmlDoc
+                            >>>
+                            getChildren
+                          ) >>> arr fromXmlTree
+
 
 -- | trace a main computation step
 -- issue a message when trace level >= 1, issue document source if level >= 3, issue tree when level is >= 4
 
-traceDoc                :: (ArrowXml a, ArrowIO a) => String -> a XmlTree XmlTree
-traceDoc msg            = traceMsg 1 msg
+traceDoc                :: ArrowXml a => String -> a XmlTree XmlTree
+traceDoc msg            = traceMsg msg
                           >>>
                           traceSource
                           >>>
                           traceTree
-
--- ----------------------------------------------------------
-
-traceOutputToStderr     :: Int -> String -> IO ()
-traceOutputToStderr _level msg
-                        = do
-                          hPutStrLn stderr msg
-                          hFlush stderr
-
--- ----------------------------------------------------------

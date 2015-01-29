@@ -68,7 +68,7 @@ data LoginMethod = LoginMethod {
       -- request and parse the <form> to get all the login request parameters we
       -- need to send to the server. If this is It's 'Just' 'True' we do this,
       -- otherwise we dont. 'Nothing' means we haven't checked yet.
-      loginNeedToFiddleWithHTML :: Maybe Bool,
+--      loginNeedToFiddleWithHTML :: Maybe Bool,
 
       -- | This function is called as: @loginReq crd req jar@ where @crd@ are
       -- the login credentials, @req@ is the last request in the redirect chain

@@ -20,7 +20,6 @@ import Web.Cookie
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text.Encoding
-import qualified Data.Text as T
 
 import Data.Maybe
 
@@ -29,6 +28,7 @@ import OHS.Cookies
 import OHS.Pipes
 import OHS.HTTP
 
+inspectRes :: CommandResponse -> IO CommandResponse
 inspectRes r = do
 --  putStrLn $ "response: " ++ ( (cookies j)))
 
@@ -36,6 +36,7 @@ inspectRes r = do
 
   return r
 
+jbs :: forall a. ToJSON a => a -> String
 jbs j = T.unpack $ decodeUtf8 $ LBS.toStrict $ Data.Aeson.encode j
 
 server :: String -> String -> IO ()
@@ -56,7 +57,6 @@ loginMethods :: [(SiteUrl, LoginMethod)]
 loginMethods = [
  (,) "www.google.at" LoginMethod {
     loginUrl = "https://accounts.google.com"
-  , loginNeedToFiddleWithHTML = Just True
   , loginReq = \(Credentials (UId uid) (Password pw)) _req jar -> do
         url <- parseUrl "https://accounts.google.com/ServiceLoginAuth"
         formDataBody [ partBS "GALX" $ fromJust $ lookup "GALX" (cookieJarToAsc jar)
@@ -73,18 +73,20 @@ loginMethods = [
 
 credentials :: [((SiteUrl, UId), Secret)]
 credentials = [
- (,) ("www.google.at", UId "smith@darkboxed.org") (Password "iN1qohQK45ATr3ygpYxC")
+   (,) ("www.google.at", UId "smith@darkboxed.org") (Password "iN1qohQK45ATr3ygpYxC")
+ , (,) ("www.ebay.at", UId "smith@darkboxed.org") (Password "fxj6bFu2IaOQA883sd3j1o0JIj03zTf6")
+
  ]
 
 executeCommand :: Command -> IO CommandResponse
-executeCommand (Login uri uid ua) = do
+executeCommand (Login uri uid _ua) = do
   let Just dom = uriRegName <$> uriAuthority uri
       Just lm = lookup dom loginMethods
       Just pw = lookup (dom,uid) credentials
 
-  uncurry LoginSuccess <$> login lm (Credentials uid pw) ua
+  uncurry LoginSuccess <$> login lm (Credentials uid pw) "OHSd"  -- TODO: ua
 
-executeCommand (Register site locator _cookies) = do
+executeCommand (Register _site _locator _cookies) = do
   undefined
 
 login :: LoginMethod -> Credentials -> String -> IO (URI, [SetCookie])
@@ -107,8 +109,13 @@ login LoginMethod {..} crd ua = withManager uaManagerSettings $ \mngr -> do
  where
    extractCookies =
        evictOverwrittenCookies . destroyCookieJar . responseCookieJar
+
    uaManagerSettings = managerUserAgent ua tlsManagerSettings
+
+   -- For debugging
+   -- tlsVerifyDisabledManagerSettings =
+   --    mkManagerSettings (TLSSettingsSimple True False False) Nothing
 
    bs :: BS.ByteString -> String
    bs s = T.unpack $ decodeUtf8 s
-   url req = bs $ (host req) `BS.append` (path req) `BS.append` (queryString req)
+   _url req = bs $ (host req) `BS.append` (path req) `BS.append` (queryString req)

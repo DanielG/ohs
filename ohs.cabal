@@ -13,15 +13,18 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
+  hs-source-dirs:  lib/
   exposed-modules: OHS.Client
                    OHS.Server
                    OHS.Locator
-                   OHS.Forms
+                   OHS.FormSubmission
+                   OHS.FormSubmission.Types
                    OHS.Cookies
                    OHS.Types
                    OHS.HXTrace
                    OHS.HTTP
                    OHS.Pipes
+                   OHS.ArrowReader
 
   build-depends:       base >=4.6 && <4.8,
                        bytestring,
@@ -55,10 +58,11 @@ library
                        parsec,
                        cookie,
                        blaze-builder,
-                       data-default-class
+                       data-default-class,
+                       connection
   default-language:    Haskell2010
 
-test-suite test
+test-suite spec
   default-language:
     Haskell2010
   type:
@@ -75,7 +79,7 @@ test-suite test
 
 executable update-dataset
   default-language:  Haskell2010
-  hs-source-dirs:    data
+  hs-source-dirs:    src/OHSm
   main-is:           Update.hs
 --  other-extensions:
   build-depends:       base,
@@ -94,7 +98,7 @@ executable update-dataset
                        ohs
 
 executable ohsd
-  hs-source-dirs:    daemon
+  hs-source-dirs:    src/OHSd
   main-is:           Main.hs
   -- other-extensions:
   build-depends:       base >=4.6 && <4.8,
@@ -121,10 +125,8 @@ executable ohsd
   default-language:    Haskell2010
 
 executable ohs
-  hs-source-dirs:    client
+  hs-source-dirs:    src/OHScli
   main-is:           Cli.hs
-  -- other-modules:
-  -- other-extensions:
   build-depends:       base >=4.6 && <4.8,
                        http-types,
                        http-client,
@@ -134,11 +136,10 @@ executable ohs
                        mtl,
                        unix,
                        ohs
-  -- hs-source-dirs:
   default-language:    Haskell2010
 
 -- executable ohs-ui-gtk
---   hs-source-dirs:    client
+--   hs-source-dirs:    client-old/
 --   main-is:           GTK.hs
 --   -- other-modules:
 --   -- other-extensions:
