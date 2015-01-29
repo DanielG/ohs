@@ -118,7 +118,7 @@ $(deriveJSON defaultOptions ''FailReason)
 
 data CommandResponse = CommandSuccess
                      | CommandFail { failReason :: FailReason }
-                     | LoginSuccess { targetURL :: URI, cookies :: [SetCookie] }
+                     | LoginSuccess { targetURL :: URI, cookies :: [(Maybe ByteString, SetCookie)] }
   deriving (Show, Generic)
 $(deriveJSON defaultOptions ''CommandResponse)
 

@@ -9,6 +9,7 @@ import Data.Aeson
 import qualified Data.Text as T
 import Network.URI (URI (..), URIAuth(..))
 import Network.Simple.TCP
+import Network.Connection
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.HTTP.Client.MultipartFormData
@@ -17,6 +18,7 @@ import Pipes.Network.TCP as PT
 import Pipes.Aeson.Unchecked as PA (encode)
 import Web.Cookie
 
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Text.Encoding
@@ -89,7 +91,7 @@ executeCommand (Login uri uid _ua) = do
 executeCommand (Register _site _locator _cookies) = do
   undefined
 
-login :: LoginMethod -> Credentials -> String -> IO (URI, [SetCookie])
+login :: LoginMethod -> Credentials -> String -> IO (URI, [(Maybe ByteString, SetCookie)])
 login LoginMethod {..} crd ua = withManager uaManagerSettings $ \mngr -> do
   -- First get the login page and all the cookies that go along with it
   req <- parseUrl loginUrl

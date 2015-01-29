@@ -41,7 +41,7 @@ runOHST host port action =
     connect host port $ \(sock, addr) ->
         runReaderT (evalStateT action Nothing) (OHSEnv sock addr)
 
-login :: (MonadIO m, MonadMask m) => URI -> UId -> OHST m (URI, [SetCookie])
+login :: (MonadIO m, MonadMask m) => URI -> UId -> OHST m (URI, [(Maybe ByteString, SetCookie)])
 login uri uid = do
   res <- interaction Login {
                   loginURL = uri
