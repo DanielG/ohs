@@ -42,7 +42,7 @@ addSubmodule depth s = do
   case b of
     True -> do
            putStrLn $ "adding " ++ s
-           callProcess "cabal" ["sandbox", "add-source", s]
+           system $ "cabal sandbox add-source" ++ s
     False -> do
 --      putStrLn $ "no cabal file in: " ++ s
       addSubmodule (depth+1) `mapM_` fs

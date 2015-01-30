@@ -15,6 +15,8 @@ rm -f .cabal-sandbox/add-source-timestamps
 
 $(dirname $0)/add-sources.hs
 
+cabal update
+
 #[ ! -e .cabal-sandbox/bin/gtk2hsC2hs ] && cabal install gtk2hs-buildtools
 #[ ! -e .cabal-sandbox/bin/c2hs ] && cabal install c2hs
 cabal install --enable-tests --only-dependencies --reinstall --force-reinstalls
